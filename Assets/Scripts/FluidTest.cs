@@ -2,13 +2,15 @@
 
 public class FluidTest : MonoBehaviour
 {
-    public int width = 64;
+    [Header("Grid Settings")]
+    public int width = 32;
     public int height = 32;
-    public float cellSize = 0.2f;
+    public float cellSize = 0.5f;
 
-    // Simulation parameters
-    public float viscosity = 0.0001f; // Unused currently but good to have
-    public float diffusion = 0.0001f;
+    [Header("Simulation Settings")]
+    public float timeStep = 0.02f; // Keep this small!
+    public float viscosity = 0.00001f;
+    public float diffusion = 0.00001f;
 
     private FluidGrid grid;
     private FluidDrawer drawer;
@@ -33,6 +35,9 @@ public class FluidTest : MonoBehaviour
 
     void Update()
     {
-        // Simulation logic will go here (Simulate Step) in the next phase!
+        // 4. The Simulation Step
+        // We divide by 'width' here to normalize the time step for the grid resolution
+        // (Standard trick in fluid solvers like Jos Stam's)
+        grid.Step(timeStep, viscosity, diffusion);    
     }
 }
