@@ -229,31 +229,38 @@ public class FluidGrid
             {
                 float du = u[GetIndexU(i + 1, j)] - u[GetIndexU(i, j)];
                 float dv = v[GetIndexV(i, j + 1)] - v[GetIndexV(i, j)];
-            
-                // FIX: Divide by dt to get the correct units (Velocity / Time)
-                divergence[GetIndex(i, j)] = (du + dv) * invH / dt;
+
+                // FIX 1: Negative sign and multiply by cellSize
+                divergence[GetIndex(i, j)] = -(du + dv) * cellSize / dt;
             
                 pressure[GetIndex(i, j)] = 0f;
             }
         }
 
-        // 2. Solve Pressure (Jacobi) - Apply the boundary fix here too if you haven't yet!
+        // 2. Solve Pressure (Jacobi)
         for (int iter = 0; iter < 40; iter++)
         {
+            // FIX 2: Explicitly apply boundaries to the ghost cells (0 and max)
+            // This ensures the solver 'sees' the walls correctly during iteration
+            ApplyPressureBoundaries();
+
             for (int j = 1; j < height - 1; j++)
             {
                 for (int i = 1; i < width - 1; i++)
                 {
-                    // (Make sure you are using the boundary clamp fix discussed previously here)
-                    float pL = (i == 1)         ? pressure[GetIndex(i, j)] : pressure[GetIndex(i - 1, j)];
-                    float pR = (i == width - 2) ? pressure[GetIndex(i, j)] : pressure[GetIndex(i + 1, j)];
-                    float pB = (j == 1)         ? pressure[GetIndex(i, j)] : pressure[GetIndex(i, j - 1)];
-                    float pT = (j == height - 2)? pressure[GetIndex(i, j)] : pressure[GetIndex(i, j + 1)];
+                    // Now we can just safely access neighbors because we set them in ApplyPressureBoundaries
+                    float pL = pressure[GetIndex(i - 1, j)];
+                    float pR = pressure[GetIndex(i + 1, j)];
+                    float pB = pressure[GetIndex(i, j - 1)];
+                    float pT = pressure[GetIndex(i, j + 1)];
 
                     pressure[GetIndex(i, j)] = (divergence[GetIndex(i, j)] + pL + pR + pB + pT) * 0.25f;
                 }
             }
         }
+    
+        // Apply one last time before calculating gradient so the wall subtraction is correct
+        ApplyPressureBoundaries();
 
         // 3. Subtract gradient
         for (int j = 1; j < height - 1; j++)
@@ -263,10 +270,28 @@ public class FluidGrid
                 float gradPx = (pressure[GetIndex(i, j)] - pressure[GetIndex(i - 1, j)]) * invH;
                 float gradPy = (pressure[GetIndex(i, j)] - pressure[GetIndex(i, j - 1)]) * invH;
 
-                // FIX: Multiply by dt to apply the force correctly over time
                 u[GetIndexU(i, j)] -= gradPx * dt;
                 v[GetIndexV(i, j)] -= gradPy * dt;
             }
+        }
+    }    
+    
+    // Add this method to FluidGrid class
+    void ApplyPressureBoundaries()
+    {
+        for (int j = 0; j < height; j++)
+        {
+            // Left wall: P[0] = P[1]
+            pressure[GetIndex(0, j)] = pressure[GetIndex(1, j)];
+            // Right wall: P[width-1] = P[width-2]
+            pressure[GetIndex(width - 1, j)] = pressure[GetIndex(width - 2, j)];
+        }
+        for (int i = 0; i < width; i++)
+        {
+            // Bottom wall: P[0] = P[1]
+            pressure[GetIndex(i, 0)] = pressure[GetIndex(i, 1)];
+            // Top wall: P[height-1] = P[height-2]
+            pressure[GetIndex(i, height - 1)] = pressure[GetIndex(i, height - 2)];
         }
     }
     public int GetIndex(int x, int y) => x + y * width;

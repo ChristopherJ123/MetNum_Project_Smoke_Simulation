@@ -460,7 +460,7 @@ MonoBehaviour:
   drawVelocity: 1
   opacity: 0.5
   interactionRadius: 0.2
-  interactionStrength: 50
+  interactionStrength: 200
 --- !u!114 &1316137156
 MonoBehaviour:
   m_ObjectHideFlags: 0
