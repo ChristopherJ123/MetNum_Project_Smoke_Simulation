@@ -8,8 +8,8 @@ public class FluidGrid
     public float cellSize;
 
     // Physics arrays
-    public readonly float[] VelocitiesX; 
-    public readonly float[] VelocitiesY; 
+    public float[] VelocitiesX; 
+    public float[] VelocitiesY; 
     public float[] density; 
     public float[] pressure;
 
@@ -19,7 +19,7 @@ public class FluidGrid
     public float[] prevDensity;
 
     // divergence array for pressure solve (cell-centered)
-    private float[] divergence;
+    public float[] divergence;
 
     public FluidGrid(int width, int height, float cellSize)
     {
@@ -316,6 +316,52 @@ public class FluidGrid
 
         // 3. Sum to calculate if more fluid is entering (divergence < 0) or exiting the cell (divergence > 0)
         return gradientX + gradientY;
+    }
+    
+    public void Resize(int newWidth, int newHeight, float newCellSize)
+    {
+        // 1. Safety Check: Don't do anything if the size hasn't actually changed
+        if (newWidth == width && newHeight == height && Mathf.Approximately(newCellSize, cellSize)) 
+            return;
+
+        // 2. Update Dimensions
+        width = newWidth;
+        height = newHeight;
+        cellSize = newCellSize;
+
+        int cellCount = width * height;
+
+        // 3. Re-Allocate Physics Arrays
+        // Note: This effectively clears the simulation (resets to 0)
+        VelocitiesX = new float[(width + 1) * height];
+        VelocitiesY = new float[width * (height + 1)];
+    
+        density = new float[cellCount];
+        pressure = new float[cellCount];
+        divergence = new float[cellCount];
+
+        // 4. Re-Allocate Helper Arrays
+        prevU = new float[VelocitiesX.Length];
+        prevV = new float[VelocitiesY.Length];
+        prevDensity = new float[density.Length];
+
+        Debug.Log($"Grid Resized to {width}x{height}");
+    }
+    
+    public void Clear()
+    {
+        // System.Array.Clear is extremely fast (uses memset internally)
+        System.Array.Clear(VelocitiesX, 0, VelocitiesX.Length);
+        System.Array.Clear(VelocitiesY, 0, VelocitiesY.Length);
+        System.Array.Clear(density, 0, density.Length);
+        System.Array.Clear(pressure, 0, pressure.Length);
+        System.Array.Clear(divergence, 0, divergence.Length);
+        
+        System.Array.Clear(prevU, 0, prevU.Length);
+        System.Array.Clear(prevV, 0, prevV.Length);
+        System.Array.Clear(prevDensity, 0, prevDensity.Length);
+        
+        Debug.Log("Simulation Cleared");
     }
     
     public int GetIndex(int x, int y) => x + y * width;
