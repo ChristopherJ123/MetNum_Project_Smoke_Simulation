@@ -32,9 +32,11 @@ public class FluidTest : MonoBehaviour
         display.Setup(grid);
 
         // 4. Setup Camera
-        Camera.main.transform.position = new Vector3(width * cellSize / 2f, height * cellSize / 2f, -10);
-        Camera.main.orthographic = true; 
-        Camera.main.orthographicSize = height * cellSize / 2f + 1;
+        // Camera.main.transform.position = new Vector3(width * cellSize / 2f, height * cellSize / 2f, -10);
+        // Camera.main.orthographic = true; 
+        // Camera.main.orthographicSize = height * cellSize / 2f + 1;
+        
+        ResizeSimulation();
     }
 
     void Update()
@@ -62,8 +64,15 @@ public class FluidTest : MonoBehaviour
         if (display) display.Setup(grid);
 
         // C. Adjust Camera (Optional, keeps grid centered)
+        // --- FULLSCREEN CAMERA SETUP ---
+        float gridWidthWorld = width * cellSize;
+        float gridHeightWorld = height * cellSize;
+        
         Camera.main.transform.position = new Vector3(width * cellSize / 2f, height * cellSize / 2f, -10);
-        Camera.main.orthographicSize = height * cellSize / 2f + 1;
+        
+        // Scale camera to fit HEIGHT exactly
+        Camera.main.orthographic = true;
+        Camera.main.orthographicSize = gridHeightWorld * 0.5f;    
     }
 
     public void ClearSimulation()

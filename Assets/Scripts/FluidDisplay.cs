@@ -7,31 +7,37 @@ public class FluidDisplay : MonoBehaviour
     [Header("Settings")]
     public DrawMode drawMode = DrawMode.Density;
     [Range(0, 1)] public float opacity = 1.0f;
-    public bool showVectors = false;
+    
+    [Header("Grid Visualization")]
+    public bool showGridLines = true;
+    public Color gridLineColor = new Color(1, 1, 1, 0.1f);
+    
+    [Header("Vectors")]
+    public bool showVectors = true;
     [Range(0.1f, 2f)] public float vectorScale = 0.5f;
 
     [Header("Color Schemes")]
-    public Gradient densityColor;
     public Color divergencePositive = Color.red;
     public Color divergenceNegative = Color.cyan;
     public Color pressurePositive = new Color(1f, 0.5f, 0f); // Orange
     public Color pressureNegative = new Color(0f, 0.5f, 1f); // Blue
+    
+    // References
+    public Material fluidMaterial; 
+    public Material lineMaterial;
 
     // Internal Graphics
     private Texture2D texture;
     private Color[] pixels;
     private FluidGrid grid;
     private MeshRenderer meshRenderer;
+    private GameObject quadObject;
 
     public void Setup(FluidGrid grid)
     {
-        // --- FIX: CLEANUP OLD GRAPHICS ---
-        // If we already have a texture, destroy it to free memory
-        if (texture) Destroy(texture);
-    
-        // If we already created a Quad child object, destroy it
-        foreach (Transform child in transform) Destroy(child.gameObject);
-        // ---------------------------------
+        // Cleanup old
+        if (texture != null) Destroy(texture);
+        if (quadObject != null) Destroy(quadObject);
         
         this.grid = grid;
 
@@ -43,18 +49,29 @@ public class FluidDisplay : MonoBehaviour
         pixels = new Color[grid.width * grid.height];
 
         // 2. Create a Quad to display it
-        GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
-        quad.transform.parent = transform;
-        quad.transform.localPosition = new Vector3(grid.width * grid.cellSize * 0.5f, grid.height * grid.cellSize * 0.5f, 0);
-        quad.transform.localScale = new Vector3(grid.width * grid.cellSize, grid.height * grid.cellSize, 1);
+        quadObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        quadObject.transform.parent = transform;
+        quadObject.name = "FluidQuad";
+        Destroy(quadObject.GetComponent<Collider>()); // Remove collider
         
         // 3. Setup Material (Unlit is fastest/cleanest)
-        meshRenderer = quad.GetComponent<MeshRenderer>();
-        meshRenderer.material = new Material(Shader.Find("Unlit/Texture"));
-        meshRenderer.material.mainTexture = texture;
+        meshRenderer = quadObject.GetComponent<MeshRenderer>();
+        if (fluidMaterial)
+        {
+            meshRenderer.material = new Material(fluidMaterial);
+        }
+        else
+        {
+            meshRenderer.material = new Material(Shader.Find("Unlit/Texture"));
+        }        meshRenderer.material.mainTexture = texture;
         
-        // Remove collider so it doesn't block mouse clicks
-        Destroy(quad.GetComponent<Collider>());
+        // 4. Scale Quad to Match Simulation Dimensions
+        // We center it at (width*cell/2, height*cell/2)
+        float simWidth = grid.width * grid.cellSize;
+        float simHeight = grid.height * grid.cellSize;
+
+        quadObject.transform.localPosition = new Vector3(simWidth * 0.5f, simHeight * 0.5f, 0);
+        quadObject.transform.localScale = new Vector3(simWidth, simHeight, 1);
     }
 
     public void Draw()
@@ -132,41 +149,76 @@ public class FluidDisplay : MonoBehaviour
         drawMode = (DrawMode)mode;
         Debug.Log("Draw mode changed to: " + drawMode);
     }
-
-    // Unity callback for immediate mode drawing (GL)
-    // This draws lines on top of the scene
+    
+    // Immediate Mode Drawing for Grid Lines & Vectors
     void OnRenderObject()
     {
-        if (grid == null || !showVectors) return;
-
-        // Setup material for drawing lines
-        Material lineMat = new Material(Shader.Find("Hidden/Internal-Colored"));
-        lineMat.SetPass(0);
+        if (grid == null || lineMaterial == null) return;
+        
+        // Use the assigned material (Must support Vertex Colors!)
+        lineMaterial.SetPass(0);
 
         GL.PushMatrix();
-        GL.MultMatrix(transform.localToWorldMatrix);
-        GL.Begin(GL.LINES);
-
-        for (int y = 0; y < grid.height; y++)
+        // Multiply by transform matrix AND shift Z by -0.1 to draw in front of the quad
+        GL.MultMatrix(transform.localToWorldMatrix * Matrix4x4.Translate(new Vector3(0, 0, -0.1f)));
+        
+        // --- DRAW GRID LINES ---
+        if (showGridLines)
         {
-            for (int x = 0; x < grid.width; x++)
+            GL.Begin(GL.LINES);
+            GL.Color(gridLineColor);
+
+            float w = grid.width * grid.cellSize;
+            float h = grid.height * grid.cellSize;
+
+            // Vertical lines
+            for (int i = 0; i <= grid.width; i++)
             {
-                // Center position
-                float px = (x + 0.5f) * grid.cellSize;
-                float py = (y + 0.5f) * grid.cellSize;
-
-                // Average velocity
-                float u = (grid.VelocitiesX[grid.GetIndexU(x, y)] + grid.VelocitiesX[grid.GetIndexU(x + 1, y)]) * 0.5f;
-                float v = (grid.VelocitiesY[grid.GetIndexV(x, y)] + grid.VelocitiesY[grid.GetIndexV(x, y + 1)]) * 0.5f;
-
-                // Draw Line
-                GL.Color(new Color(1, 1, 1, 0.3f));
-                GL.Vertex3(px, py, 0);
-                GL.Vertex3(px + u * vectorScale, py + v * vectorScale, 0);
+                float x = i * grid.cellSize;
+                GL.Vertex3(x, 0, 0);
+                GL.Vertex3(x, h, 0);
             }
+
+            // Horizontal lines
+            for (int j = 0; j <= grid.height; j++)
+            {
+                float y = j * grid.cellSize;
+                GL.Vertex3(0, y, 0);
+                GL.Vertex3(w, y, 0);
+            }
+            GL.End();
         }
 
-        GL.End();
+        // --- DRAW VECTORS ---
+        if (showVectors)
+        {
+            GL.Begin(GL.LINES);
+            for (int y = 0; y < grid.height; y++)
+            {
+                for (int x = 0; x < grid.width; x++)
+                {
+                    float px = (x + 0.5f) * grid.cellSize;
+                    float py = (y + 0.5f) * grid.cellSize;
+
+                    float u = (grid.VelocitiesX[grid.GetIndexU(x, y)] + grid.VelocitiesX[grid.GetIndexU(x + 1, y)]) * 0.5f;
+                    float v = (grid.VelocitiesY[grid.GetIndexV(x, y)] + grid.VelocitiesY[grid.GetIndexV(x, y + 1)]) * 0.5f;
+
+                    // Scale vector color alpha by magnitude so small vectors are invisible
+                    float mag = Mathf.Sqrt(u*u + v*v);
+                    if (mag > 0.01f)
+                    {
+                        GL.Color(new Color(1, 1, 1, 0.5f));
+                        GL.Vertex3(px, py, 0);
+                        GL.Vertex3(px + u * vectorScale, py + v * vectorScale, 0);
+                    }
+                }
+            }
+            GL.End();
+        }
+
         GL.PopMatrix();
     }
+    
+    public void ToggleVectors() { showVectors = !showVectors; }
+    public void ToggleGridLines() { showGridLines = !showGridLines; }
 }
