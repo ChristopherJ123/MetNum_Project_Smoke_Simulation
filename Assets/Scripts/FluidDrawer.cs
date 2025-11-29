@@ -73,12 +73,12 @@ public class FluidDrawer : MonoBehaviour
             // --- SYMMETRICAL FORCE APPLICATION (Fixes the Bias) ---
             
             // Split the Horizontal force between Left and Right walls
-            grid.u[grid.GetIndexU(cx, cy)]     += force.x * 0.5f;
-            grid.u[grid.GetIndexU(cx + 1, cy)] += force.x * 0.5f;
+            grid.VelocitiesX[grid.GetIndexU(cx, cy)]     += force.x * 0.5f;
+            grid.VelocitiesX[grid.GetIndexU(cx + 1, cy)] += force.x * 0.5f;
 
             // Split the Vertical force between Bottom and Top walls
-            grid.v[grid.GetIndexV(cx, cy)]     += force.y * 0.5f;
-            grid.v[grid.GetIndexV(cx, cy + 1)] += force.y * 0.5f;
+            grid.VelocitiesY[grid.GetIndexV(cx, cy)]     += force.y * 0.5f;
+            grid.VelocitiesY[grid.GetIndexV(cx, cy + 1)] += force.y * 0.5f;
         }
     }
 
@@ -108,8 +108,8 @@ public class FluidDrawer : MonoBehaviour
 
                 if (drawVelocity)
                 {
-                    float u = (grid.u[grid.GetIndexU(x, y)] + grid.u[grid.GetIndexU(x + 1, y)]) * 0.5f;
-                    float v = (grid.v[grid.GetIndexV(x, y)] + grid.v[grid.GetIndexV(x, y + 1)]) * 0.5f;
+                    float u = (grid.VelocitiesX[grid.GetIndexU(x, y)] + grid.VelocitiesX[grid.GetIndexU(x + 1, y)]) * 0.5f;
+                    float v = (grid.VelocitiesY[grid.GetIndexV(x, y)] + grid.VelocitiesY[grid.GetIndexV(x, y + 1)]) * 0.5f;
 
                     if (Mathf.Abs(u) + Mathf.Abs(v) > 0.1f)
                     {

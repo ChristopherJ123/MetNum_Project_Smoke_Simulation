@@ -38,6 +38,6 @@ public class FluidTest : MonoBehaviour
         // 4. The Simulation Step
         // We divide by 'width' here to normalize the time step for the grid resolution
         // (Standard trick in fluid solvers like Jos Stam's)
-        grid.Step(timeStep, viscosity, diffusion);    
+        grid.Step(timeStep, viscosity, diffusion);
     }
 }

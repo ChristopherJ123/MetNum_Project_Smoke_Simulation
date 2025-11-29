@@ -8,8 +8,8 @@ public class FluidGrid
     public float cellSize;
 
     // Physics arrays
-    public float[] u; 
-    public float[] v; 
+    public readonly float[] VelocitiesX; 
+    public readonly float[] VelocitiesY; 
     public float[] density; 
     public float[] pressure;
 
@@ -30,8 +30,8 @@ public class FluidGrid
         int cellCount = width * height;
 
         // Velocity arrays are larger (Staggered Grid)
-        u = new float[(width + 1) * height];       // u at vertical edges (x in [0..width])
-        v = new float[width * (height + 1)];      // v at horizontal edges (y in [0..height])
+        VelocitiesX = new float[(width + 1) * height];       // u at vertical edges (x in [0..width])
+        VelocitiesY = new float[width * (height + 1)];      // v at horizontal edges (y in [0..height])
         
         density = new float[cellCount];
         pressure = new float[cellCount];
@@ -39,8 +39,8 @@ public class FluidGrid
         
         Debug.Log($"FluidGrid Initialized: {width}x{height} (Cells: {cellCount})");
 
-        prevU = new float[u.Length];
-        prevV = new float[v.Length];
+        prevU = new float[VelocitiesX.Length];
+        prevV = new float[VelocitiesY.Length];
         prevDensity = new float[density.Length];
     }
     
@@ -49,20 +49,20 @@ public class FluidGrid
         if (dt <= 0f) return;
 
         // 1. Prepare: Copy current state to "Previous" state
-        System.Array.Copy(u, prevU, u.Length);
-        System.Array.Copy(v, prevV, v.Length);
+        System.Array.Copy(VelocitiesX, prevU, VelocitiesX.Length);
+        System.Array.Copy(VelocitiesY, prevV, VelocitiesY.Length);
         System.Array.Copy(density, prevDensity, density.Length);
 
         // 2. Advect Velocity (Self-Advection)
-        AdvectU(u, prevU, prevV, dt);
-        AdvectV(v, prevU, prevV, dt);
+        AdvectU(VelocitiesX, prevU, prevV, dt);
+        AdvectV(VelocitiesY, prevU, prevV, dt);
 
         // 3. Advect Density (cell-centered)
         AdvectScalar(density, prevDensity, prevU, prevV, dt);
 
         // --- Velocity Decay (damping) ---
-        for (int i = 0; i < u.Length; i++) u[i] *= 0.99f; // Less aggressive damping is usually fine with stable code
-        for (int i = 0; i < v.Length; i++) v[i] *= 0.99f;
+        for (int i = 0; i < VelocitiesX.Length; i++) VelocitiesX[i] *= 0.99f; // Less aggressive damping is usually fine with stable code
+        for (int i = 0; i < VelocitiesY.Length; i++) VelocitiesY[i] *= 0.99f;
 
         // 4. Solve Pressure
         Project(dt);
@@ -227,12 +227,15 @@ public class FluidGrid
         {
             for (int i = 1; i < width - 1; i++)
             {
-                float du = u[GetIndexU(i + 1, j)] - u[GetIndexU(i, j)];
-                float dv = v[GetIndexV(i, j + 1)] - v[GetIndexV(i, j)];
+                // A. Get the clean physical divergence using the helper
+                float div = CalculateVelocityDivergence(i, j);
 
-                // FIX 1: Negative sign and multiply by cellSize
-                divergence[GetIndex(i, j)] = -(du + dv) * cellSize / dt;
-            
+                // B. Convert it to the term needed by the Pressure Solver equation
+                // Formula: Term = -Divergence * (h^2) / dt
+                // Explanation: We multiply by h^2 because the Laplacian in the solver 
+                // effectively divides by h^2, so we cancel it out here.
+                divergence[GetIndex(i, j)] = -div * (cellSize * cellSize) / dt;
+    
                 pressure[GetIndex(i, j)] = 0f;
             }
         }
@@ -270,8 +273,8 @@ public class FluidGrid
                 float gradPx = (pressure[GetIndex(i, j)] - pressure[GetIndex(i - 1, j)]) * invH;
                 float gradPy = (pressure[GetIndex(i, j)] - pressure[GetIndex(i, j - 1)]) * invH;
 
-                u[GetIndexU(i, j)] -= gradPx * dt;
-                v[GetIndexV(i, j)] -= gradPy * dt;
+                VelocitiesX[GetIndexU(i, j)] -= gradPx * dt;
+                VelocitiesY[GetIndexV(i, j)] -= gradPy * dt;
             }
         }
     }    
@@ -294,6 +297,27 @@ public class FluidGrid
             pressure[GetIndex(i, height - 1)] = pressure[GetIndex(i, height - 2)];
         }
     }
+    
+    // Helper method to calculate velocity divergence at a given cell
+    public float CalculateVelocityDivergence(int i, int j)
+    {
+        // 1. Get velocities at the four edges of the cell
+        // u[] is Staggered X: Index (i, j) is Left, (i+1, j) is Right
+        // v[] is Staggered Y: Index (i, j) is Bottom, (i, j+1) is Top
+        float velocityLeft   = VelocitiesX[GetIndexU(i, j)];
+        float velocityRight  = VelocitiesX[GetIndexU(i + 1, j)];
+        float velocityBottom = VelocitiesY[GetIndexV(i, j)];
+        float velocityTop    = VelocitiesY[GetIndexV(i, j + 1)];
+
+        // 2. Calculate gradients (change in velocity / distance)
+        // This represents du/dx and dv/dy
+        float gradientX = (velocityRight - velocityLeft) / cellSize; 
+        float gradientY = (velocityTop - velocityBottom) / cellSize;
+
+        // 3. Sum to calculate if more fluid is entering (divergence < 0) or exiting the cell (divergence > 0)
+        return gradientX + gradientY;
+    }
+    
     public int GetIndex(int x, int y) => x + y * width;
     public int GetIndexU(int x, int y) => x + y * (width + 1);
     public int GetIndexV(int x, int y) => x + y * width;
