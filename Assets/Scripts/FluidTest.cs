@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using UnityEngine.UI;
 
 public class FluidTest : MonoBehaviour
 {
@@ -11,6 +12,13 @@ public class FluidTest : MonoBehaviour
     public float timeStep = 0.02f; // Keep this small!
     public float viscosity = 0.00001f;
     public float diffusion = 0.00001f;
+    
+    [Header("Obstacle")]
+    public bool enableObstacle = false; // Toggle this in Inspector!
+    [Range(1, 20)] public int obstacleSize = 10;
+    
+    [Header("UI References")]
+    public Scrollbar obstacleSizeScrollbar; // Assign this in Inspector
 
     private FluidGrid grid;
     private FluidDrawer drawer;
@@ -37,6 +45,24 @@ public class FluidTest : MonoBehaviour
         // Camera.main.orthographicSize = height * cellSize / 2f + 1;
         
         ResizeSimulation();
+        
+        // --- UI HOOKUP ---
+        if (obstacleSizeScrollbar != null)
+        {
+            // Set initial value based on current obstacleSize (map 1..20 to 0..1)
+            float normalizedVal = Mathf.InverseLerp(1, 20, obstacleSize);
+            obstacleSizeScrollbar.value = normalizedVal;
+
+            // Add listener for changes
+            obstacleSizeScrollbar.onValueChanged.AddListener(OnObstacleSizeChanged);
+        }
+    }
+    
+    // Called automatically when scrollbar moves
+    public void OnObstacleSizeChanged(float val)
+    {
+        // Map 0..1 back to 1..20
+        obstacleSize = Mathf.RoundToInt(Mathf.Lerp(1, 20, val));
     }
 
     void Update()
@@ -47,12 +73,40 @@ public class FluidTest : MonoBehaviour
             ResizeSimulation();
         }
         
+        // --- UPDATE OBSTACLE ---
+        UpdateObstacle();
+        
         // 4. The Simulation Step
         // We divide by 'width' here to normalize the time step for the grid resolution
         // (Standard trick in fluid solvers like Jos Stam's)
         grid.Step(timeStep, viscosity, diffusion);
         
         display.Draw(); // <--- Draw the new library
+    }
+    
+    void UpdateObstacle()
+    {
+        // Reset solid array
+        System.Array.Clear(grid.s, 0, grid.s.Length);
+
+        if (enableObstacle)
+        {
+            int cx = width / 2;
+            int cy = height / 2;
+            int r = obstacleSize;
+
+            for (int y = cy - r; y <= cy + r; y++)
+            {
+                for (int x = cx - r; x <= cx + r; x++)
+                {
+                    if (x >= 0 && x < width && y >= 0 && y < height)
+                    {
+                        grid.s[grid.GetIndex(x, y)] = 1.0f; // Mark as solid
+                        grid.density[grid.GetIndex(x, y)] = 0f; // Clear smoke inside
+                    }
+                }
+            }
+        }
     }
     
     void ResizeSimulation()
@@ -79,4 +133,8 @@ public class FluidTest : MonoBehaviour
     {
         grid.Clear();
     }
+    
+    public void ToggleObstacle() { enableObstacle = !enableObstacle; }
+    
+    public void ChangeObstacleSize(int size) { obstacleSize = size; }
 }

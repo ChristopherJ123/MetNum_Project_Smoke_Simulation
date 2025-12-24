@@ -13,6 +13,9 @@ public class FluidGrid
     public float[] density; 
     public float[] pressure;
 
+	// NEW: Solid Obstacle Array (0 = Fluid, 1 = Solid)
+    public float[] s; 
+
     // Helper arrays
     public float[] prevU;
     public float[] prevV;
@@ -36,6 +39,9 @@ public class FluidGrid
         density = new float[cellCount];
         pressure = new float[cellCount];
         divergence = new float[cellCount];
+
+		// Initialize Solid array
+        s = new float[cellCount]; 
         
         Debug.Log($"FluidGrid Initialized: {width}x{height} (Cells: {cellCount})");
 
@@ -68,6 +74,25 @@ public class FluidGrid
         Project(dt);
     }
 
+	// NEW: Force velocity to 0 at solid walls
+    void EnforceSolidBoundaries()
+    {
+        for (int j = 0; j < height; j++)
+        {
+            for (int i = 0; i < width; i++)
+            {
+                if (s[GetIndex(i, j)] > 0) // If this cell is solid
+                {
+                    // Kill velocity entering/leaving this cell
+                    VelocitiesX[GetIndexU(i, j)] = 0;     // Left edge
+                    VelocitiesX[GetIndexU(i + 1, j)] = 0; // Right edge
+                    VelocitiesY[GetIndexV(i, j)] = 0;     // Bottom edge
+                    VelocitiesY[GetIndexV(i, j + 1)] = 0; // Top edge
+                }
+            }
+        }
+    }
+
     // Advect for u component (staggered in x). 
     // FIXED: Account for the fact that u lives at y + 0.5
     void AdvectU(float[] destU, float[] uArr, float[] vArr, float dt)
@@ -78,6 +103,14 @@ public class FluidGrid
         {
             for (int i = 1; i < width; i++)
             {
+                // Skip advection if on solid boundary
+                // (Simplified check: if adjacent cells are solid, don't advect)
+                if (s[GetIndex(i-1, j)] > 0 || s[GetIndex(i, j)] > 0) 
+                {
+                    destU[GetIndexU(i, j)] = 0;
+                    continue;
+                }
+
                 float u_vel = uArr[GetIndexU(i, j)];
                 
                 // Average V to the U-face location
@@ -138,6 +171,13 @@ public class FluidGrid
         {
             for (int i = 0; i < width; i++)
             {
+                // Skip advection if on solid boundary
+                if (s[GetIndex(i, j-1)] > 0 || s[GetIndex(i, j)] > 0)
+                {
+                    destV[GetIndexV(i, j)] = 0;
+                    continue;
+                }
+                
                 // Average U to the V-face location
                 float u_vel = 0.25f * (uArr[GetIndexU(i, j - 1)] + uArr[GetIndexU(i + 1, j - 1)] +
                                        uArr[GetIndexU(i, j)] + uArr[GetIndexU(i + 1, j)]);
@@ -188,6 +228,13 @@ public class FluidGrid
         {
             for (int i = 1; i < width - 1; i++)
             {
+                // No smoke inside solids
+                if (s[GetIndex(i, j)] > 0)
+                {
+                    d[GetIndex(i, j)] = 0;
+                    continue;
+                }
+
                 // Average U and V to cell center
                 float u_vel = 0.5f * (uArr[GetIndexU(i, j)] + uArr[GetIndexU(i + 1, j)]);
                 float v_vel = 0.5f * (vArr[GetIndexV(i, j)] + vArr[GetIndexV(i, j + 1)]);
@@ -251,11 +298,21 @@ public class FluidGrid
             {
                 for (int i = 1; i < width - 1; i++)
                 {
-                    // Now we can just safely access neighbors because we set them in ApplyPressureBoundaries
-                    float pL = pressure[GetIndex(i - 1, j)];
-                    float pR = pressure[GetIndex(i + 1, j)];
-                    float pB = pressure[GetIndex(i, j - 1)];
-                    float pT = pressure[GetIndex(i, j + 1)];
+                    // Skip solver for solids
+                    if (s[GetIndex(i, j)] > 0) continue;
+
+                    // Standard Neighbors
+                    int idxL = GetIndex(i - 1, j);
+                    int idxR = GetIndex(i + 1, j);
+                    int idxB = GetIndex(i, j - 1);
+                    int idxT = GetIndex(i, j + 1);
+
+                    // --- OBSTACLE HANDLING (Neumann) ---
+                    // If neighbor is solid, use THIS cell's pressure (Gradient = 0)
+                    float pL = (s[idxL] > 0) ? pressure[GetIndex(i, j)] : pressure[idxL];
+                    float pR = (s[idxR] > 0) ? pressure[GetIndex(i, j)] : pressure[idxR];
+                    float pB = (s[idxB] > 0) ? pressure[GetIndex(i, j)] : pressure[idxB];
+                    float pT = (s[idxT] > 0) ? pressure[GetIndex(i, j)] : pressure[idxT];
 
                     pressure[GetIndex(i, j)] = (divergence[GetIndex(i, j)] + pL + pR + pB + pT) * 0.25f;
                 }
@@ -270,13 +327,29 @@ public class FluidGrid
         {
             for (int i = 1; i < width - 1; i++)
             {
-                float gradPx = (pressure[GetIndex(i, j)] - pressure[GetIndex(i - 1, j)]) * invH;
-                float gradPy = (pressure[GetIndex(i, j)] - pressure[GetIndex(i, j - 1)]) * invH;
+				// Skip gradient subtract for solid cells
+                if (s[GetIndex(i, j)] > 0) continue;
+
+                // Mask gradient at solid boundaries (don't push INTO wall)
+                float pC = pressure[GetIndex(i, j)];
+                float pL = pressure[GetIndex(i - 1, j)];
+                float pB = pressure[GetIndex(i, j - 1)];
+
+                // Check solids for Gradient calculation
+                // Note: EnforceSolidBoundaries() forces velocity to 0 anyway, 
+                // but masking pressure here helps stability.
+                if (s[GetIndex(i-1, j)] > 0) pL = pC;
+                if (s[GetIndex(i, j-1)] > 0) pB = pC;
+
+                float gradPx = (pC - pL) * invH;
+                float gradPy = (pC - pB) * invH;
 
                 VelocitiesX[GetIndexU(i, j)] -= gradPx * dt;
                 VelocitiesY[GetIndexV(i, j)] -= gradPy * dt;
             }
         }
+
+		EnforceSolidBoundaries();
     }    
     
     // Add this method to FluidGrid class
@@ -339,6 +412,8 @@ public class FluidGrid
         density = new float[cellCount];
         pressure = new float[cellCount];
         divergence = new float[cellCount];
+        
+        s = new float[cellCount];
 
         // 4. Re-Allocate Helper Arrays
         prevU = new float[VelocitiesX.Length];

@@ -95,6 +95,13 @@ public class FluidDisplay : MonoBehaviour
     {
         for (int i = 0; i < pixels.Length; i++)
         {
+            // NEW: Check if cell is solid
+            if (grid.s[i] > 0)
+            {
+                pixels[i] = new Color(0.5f, 0.5f, 0.5f, 1f); // Draw Gray Box
+                continue;
+            }
+            
             float d = grid.density[i];
             // Simple grayscale or use a gradient if you want smoke colors
             Color c = Color.white * d; 
