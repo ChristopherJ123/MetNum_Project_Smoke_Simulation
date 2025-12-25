@@ -98,6 +98,23 @@ public class FluidGrid
                 }
             }
         }
+        
+        // 2. [FIX] Paksa Dinding Grid (Wadah) menjadi Solid
+        // Ini memastikan fluida tidak bocor keluar dari layar kiri/kanan/bawah/atas
+        
+        // Kunci dinding Kiri dan Kanan (U velocity = 0)
+        for (int j = 0; j < height; j++)
+        {
+            VelocitiesX[GetIndexU(1, j)] = 0;           // Dinding Kiri Mutlak
+            VelocitiesX[GetIndexU(width, j)] = 0;       // Dinding Kanan Mutlak
+        }
+
+        // Kunci dinding Bawah dan Atas (V velocity = 0)
+        for (int i = 0; i < width; i++)
+        {
+            VelocitiesY[GetIndexV(i, 1)] = 0;           // Lantai Mutlak
+            VelocitiesY[GetIndexV(i, height)] = 0;      // Atap Mutlak
+        }
     }
 
     // Advect for u component (staggered in x). 
