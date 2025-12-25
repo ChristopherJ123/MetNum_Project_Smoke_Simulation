@@ -50,7 +50,7 @@ public class FluidGrid
         prevDensity = new float[density.Length];
     }
     
-    public void Step(float dt, float viscosity, float diffusion)
+    public void Step(float dt, float viscosity, float diffusion, float buoyancyStrength = 0)
     {
         if (dt <= 0f) return;
 
@@ -70,6 +70,13 @@ public class FluidGrid
         for (int i = 0; i < VelocitiesX.Length; i++) VelocitiesX[i] *= 0.99f; // Less aggressive damping is usually fine with stable code
         for (int i = 0; i < VelocitiesY.Length; i++) VelocitiesY[i] *= 0.99f;
 
+        if (buoyancyStrength > 0)
+        {
+            // --- TAMBAHAN: SMOKE BUOYANCY ---
+            // Panggil sebelum Project agar Project bisa menyeimbangkan tekanan akibat gaya ini
+            AddSmokeBuoyancy(dt, buoyancyStrength);
+        }
+        
         // 4. Solve Pressure
         Project(dt);
     }
@@ -389,6 +396,32 @@ public class FluidGrid
 
         // 3. Sum to calculate if more fluid is entering (divergence < 0) or exiting the cell (divergence > 0)
         return gradientX + gradientY;
+    }
+    
+    public void AddSmokeBuoyancy(float dt, float buoyancyStrength)
+    {
+        // Kita iterasi semua kecepatan vertikal (V)
+        // Ingat: V array ukurannya width * (height + 1)
+        // V[i, j] berada di perbatasan antara cell(i, j-1) dan cell(i, j)
+    
+        for (int j = 1; j < height; j++)
+        {
+            for (int i = 0; i < width; i++)
+            {
+                // Ambil rata-rata density dari cell di atas dan bawah edge ini
+                float dUp = density[GetIndex(i, j)];
+                float dDown = density[GetIndex(i, j - 1)];
+                float avgDensity = (dUp + dDown) * 0.5f;
+
+                // Jika ada asap (density > 0), berikan gaya ke atas
+                if (avgDensity > 0.001f)
+                {
+                    // buoyancyStrength positif = asap naik (panas)
+                    // buoyancyStrength negatif = asap turun (dingin/berat)
+                    VelocitiesY[GetIndexV(i, j)] += avgDensity * buoyancyStrength * dt;
+                }
+            }
+        }
     }
     
     public void Resize(int newWidth, int newHeight, float newCellSize)

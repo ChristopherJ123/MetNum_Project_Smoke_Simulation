@@ -13,9 +13,16 @@ public class FluidTest : MonoBehaviour
     public float viscosity = 0.00001f;
     public float diffusion = 0.00001f;
     
+    [Header("Smoke Settings")]
+    public float buoyancy = 5.0f;       // Kekuatan asap naik ke atas
+    public float decay = 0.99f;         // Agar asap hilang perlahan
+    
     [Header("Obstacle")]
     public bool enableObstacle = false; // Toggle this in Inspector!
     [Range(1, 20)] public int obstacleSize = 10;
+    
+    [Header("Mode Asap")]
+    public bool modeAsap = false;
     
     [Header("UI References")]
     public Scrollbar obstacleSizeScrollbar; // Assign this in Inspector
@@ -75,11 +82,24 @@ public class FluidTest : MonoBehaviour
         
         // --- UPDATE OBSTACLE ---
         UpdateObstacle();
+
+        if (modeAsap)
+        {
+            // --- STEP 2: Main Simulation ---
+            grid.Step(timeStep, viscosity, diffusion, buoyancy);
+    
+            // --- STEP 3: Manual Decay (Agar asap hilang) ---
+            // Terapkan decay manual ke density seperti diskusi kita sebelumnya
+            for(int i=0; i<grid.density.Length; i++) {
+                grid.density[i] *= decay;
+            }
+        }
+        else
+        {
+            grid.Step(timeStep, viscosity, diffusion);
+        }
         
-        // 4. The Simulation Step
-        // We divide by 'width' here to normalize the time step for the grid resolution
-        // (Standard trick in fluid solvers like Jos Stam's)
-        grid.Step(timeStep, viscosity, diffusion);
+       
         
         display.Draw(); // <--- Draw the new library
     }
@@ -137,4 +157,6 @@ public class FluidTest : MonoBehaviour
     public void ToggleObstacle() { enableObstacle = !enableObstacle; }
     
     public void ChangeObstacleSize(int size) { obstacleSize = size; }
+    
+    public void ToggleModeAsap() { modeAsap = !modeAsap; }
 }

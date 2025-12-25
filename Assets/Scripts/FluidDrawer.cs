@@ -10,8 +10,13 @@ public class FluidDrawer : MonoBehaviour
     [Range(0, 1)] public float opacity = 0.5f;
 
     [Header("Interaction")]
-    public float interactionRadius = 2f;
-    public float interactionStrength = 50f;
+    public float interactionRadius = 3f;      // Ukuran awal kuas
+    public float scrollSensitivity = 0.01f;    // Kecepatan membesar/mengecil
+    public float minRadius = 1f;              // Batas terkecil
+    public float maxRadius = 10f;             // Batas terbesar
+
+    public float densityAmount = 100f;        // Intensitas asap
+    public float velocityStrength = 10f;      // Intensitas dorongan
 
     public void SetGrid(FluidGrid grid)
     {
@@ -26,22 +31,42 @@ public class FluidDrawer : MonoBehaviour
 
     void HandleInteraction()
     {
+        // --- 1. LOGIKA SCROLL WHEEL ---
+        // Input.mouseScrollDelta.y akan bernilai positif (up) atau negatif (down)
+        float scroll = Input.mouseScrollDelta.y;
+    
+        if (scroll != 0)
+        {
+            interactionRadius += scroll * scrollSensitivity;
+        
+            // Clamp agar ukuran tidak menjadi negatif atau terlalu besar
+            interactionRadius = Mathf.Clamp(interactionRadius, minRadius, maxRadius);
+        
+            // Optional: Print ke console untuk debug
+            // Debug.Log("Brush Size: " + interactionRadius);
+        }
+
+        // --- 2. LOGIKA MOUSE POSITION ---
+        Vector3 mousePos = Input.mousePosition;
+        mousePos.z = 10f; 
+        Vector2 worldPos = Camera.main.ScreenToWorldPoint(mousePos);
+    
+        // Kita konversi ke grid index (cx, cy)
+        int cx = (int)(worldPos.x / grid.cellSize);
+        int cy = (int)(worldPos.y / grid.cellSize);
+
+        // --- 3. EKSEKUSI ---
+        // Kirim 'interactionRadius' ke fungsi penambahan
         if (Input.GetMouseButton(0)) 
         {
-            // Calculate mouse position in grid coordinates
-            Vector3 mousePos = Input.mousePosition;
-            mousePos.z = 10f; 
-            Vector2 worldPos = Camera.main.ScreenToWorldPoint(mousePos);
-            
-            int cx = (int)(worldPos.x / grid.cellSize);
-            int cy = (int)(worldPos.y / grid.cellSize);
+            AddDensity(cx, cy, interactionRadius); // Klik Kiri: Tambah Asap
+        }
 
-            // CALL THE HELPER METHODS HERE
-            AddDensity(cx, cy);
-            AddVelocity(cx, cy);
+        if (Input.GetMouseButton(1))
+        {
+            AddVelocity(cx, cy, interactionRadius); // Klik Kanan: Tambah Kecepatan
         }
     }
-
     void AddDensity(int cx, int cy)
     {
         int r = (int)(interactionRadius / grid.cellSize);
@@ -61,27 +86,63 @@ public class FluidDrawer : MonoBehaviour
         }
     }
 
-    void AddVelocity(int cx, int cy)
+    // Fungsi menambahkan Density (Asap) dengan ukuran dinamis
+    void AddDensity(int cx, int cy, float radius)
     {
-        float mouseX = Input.GetAxis("Mouse X");
-        float mouseY = Input.GetAxis("Mouse Y");
-        Vector2 force = new Vector2(mouseX, mouseY) * interactionStrength;
+        // Hitung berapa cell yang tercakup dalam radius ini
+        int r = Mathf.CeilToInt(radius / grid.cellSize);
 
-        // Ensure we are safely inside the grid (padding of 1 cell)
-        if (cx >= 1 && cx < grid.width - 1 && cy >= 1 && cy < grid.height - 1) 
+        for (int y = cy - r; y <= cy + r; y++)
         {
-            // --- SYMMETRICAL FORCE APPLICATION (Fixes the Bias) ---
-            
-            // Split the Horizontal force between Left and Right walls
-            grid.VelocitiesX[grid.GetIndexU(cx, cy)]     += force.x * 0.5f;
-            grid.VelocitiesX[grid.GetIndexU(cx + 1, cy)] += force.x * 0.5f;
+            for (int x = cx - r; x <= cx + r; x++)
+            {
+                // Cek batas grid agar tidak error
+                if (x < 0 || x >= grid.width || y < 0 || y >= grid.height) continue;
 
-            // Split the Vertical force between Bottom and Top walls
-            grid.VelocitiesY[grid.GetIndexV(cx, cy)]     += force.y * 0.5f;
-            grid.VelocitiesY[grid.GetIndexV(cx, cy + 1)] += force.y * 0.5f;
+                // Cek jarak agar bentuknya lingkaran (bukan kotak)
+                float dist = Vector2.Distance(new Vector2(cx, cy), new Vector2(x, y));
+                if (dist <= r)
+                {
+                    // Opsional: Semakin ke pinggir, intensitas semakin kecil (Smooth Brush)
+                    // float falloff = 1f - (dist / r); 
+                    // grid.density[grid.GetIndex(x, y)] += densityAmount * falloff;
+                    
+                    // Atau Flat Brush (Rata):
+                    grid.density[grid.GetIndex(x, y)] += densityAmount;
+                }
+            }
         }
     }
 
+    // Fungsi menambahkan Velocity (Dorongan) dengan ukuran dinamis
+    void AddVelocity(int cx, int cy, float radius)
+    {
+        int r = Mathf.CeilToInt(radius / grid.cellSize);
+        
+        // Hitung arah gerak mouse (Velocity Mouse)
+        // Untuk hasil terbaik, simpan posisi mouse frame sebelumnya (prevMousePos) di Update
+        float mouseX = Input.GetAxis("Mouse X");
+        float mouseY = Input.GetAxis("Mouse Y");
+        Vector2 dir = new Vector2(mouseX, mouseY).normalized;
+
+        for (int y = cy - r; y <= cy + r; y++)
+        {
+            for (int x = cx - r; x <= cx + r; x++)
+            {
+                if (x < 1 || x >= grid.width - 1 || y < 1 || y >= grid.height - 1) continue;
+
+                float dist = Vector2.Distance(new Vector2(cx, cy), new Vector2(x, y));
+                if (dist <= r)
+                {
+                    int idxU = grid.GetIndexU(x, y);
+                    int idxV = grid.GetIndexV(x, y);
+
+                    grid.VelocitiesX[idxU] += dir.x * velocityStrength;
+                    grid.VelocitiesY[idxV] += dir.y * velocityStrength;
+                }
+            }
+        }
+    }
     void OnDrawGizmos()
     {
         if (grid == null) return;
