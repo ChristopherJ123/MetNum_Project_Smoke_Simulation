@@ -3163,7 +3163,7 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
-  m_IsOn: 1
+  m_IsOn: 0
 --- !u!1 &764129792
 GameObject:
   m_ObjectHideFlags: 0
@@ -4879,7 +4879,7 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
-  m_IsOn: 1
+  m_IsOn: 0
 --- !u!1 &1274094091
 GameObject:
   m_ObjectHideFlags: 0
@@ -5127,9 +5127,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   drawMode: 0
   opacity: 1
-  showGridLines: 1
+  showGridLines: 0
   gridLineColor: {r: 1, g: 1, b: 1, a: 0.1}
-  showVectors: 1
+  showVectors: 0
   vectorScale: 0.5
   divergencePositive: {r: 1, g: 0, b: 0, a: 1}
   divergenceNegative: {r: 0, g: 1, b: 1, a: 1}

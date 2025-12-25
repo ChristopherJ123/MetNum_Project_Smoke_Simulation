@@ -67,7 +67,7 @@ public class FluidGrid
         AdvectScalar(density, prevDensity, prevU, prevV, dt);
 
         // --- Velocity Decay (damping) ---
-        for (int i = 0; i < VelocitiesX.Length; i++) VelocitiesX[i] *= 0.99f; // Less aggressive damping is usually fine with stable code
+        for (int i = 0; i < VelocitiesX.Length; i++) VelocitiesX[i] *= 0.99f;
         for (int i = 0; i < VelocitiesY.Length; i++) VelocitiesY[i] *= 0.99f;
 
         if (buoyancyStrength > 0)
@@ -81,7 +81,7 @@ public class FluidGrid
         Project(dt);
     }
 
-	// NEW: Force velocity to 0 at solid walls
+	// Force velocity to 0 at solid walls
     void EnforceSolidBoundaries()
     {
         for (int j = 0; j < height; j++)
@@ -152,20 +152,19 @@ public class FluidGrid
 
                 // Backtrace
                 // u is located physically at (i, j + 0.5)
+                // Mencari posisi fisik asli dan mundur ke masa lalu
                 float x = i - dt0 * u_vel;
                 float y = (j + 0.5f) - dt0 * v_vel;
 
                 // Clamp
                 if (x < 0.5f) x = 0.5f; if (x > width - 0.5f) x = width - 0.5f;
                 if (y < 0.5f) y = 0.5f; if (y > height - 0.5f) y = height - 0.5f; // Keep within valid grid range
-
-                // --- KEY FIX ---
-                // Convert physical coordinate 'y' to 'index space' for u-array.
-                // Since u[i,j] is at y=j+0.5, the index j = y - 0.5
+                
                 float y_index = y - 0.5f; 
                 if (y_index < 0) y_index = 0;
                 if (y_index > height - 1) y_index = height - 1;
 
+                // Persiapan interpolasi
                 int i0 = (int)x;
                 int j0 = (int)y_index; // Use the shifted index
                 int i1 = Mathf.Min(i0 + 1, width);
@@ -179,6 +178,7 @@ public class FluidGrid
                 int idxBL = GetIndexU(i0, j1);
                 int idxBR = GetIndexU(i1, j1);
 
+                // Interpolasi bilinear untuk mencampur 4 tetangga terdakat untuk mencari 
                 destU[GetIndexU(i, j)] = s0 * (t0 * uArr[idxTL] + t1 * uArr[idxBL]) +
                                           s1 * (t0 * uArr[idxTR] + t1 * uArr[idxBR]);
             }

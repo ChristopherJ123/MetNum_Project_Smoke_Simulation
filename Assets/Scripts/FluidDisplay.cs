@@ -117,7 +117,7 @@ public class FluidDisplay : MonoBehaviour
             float div = grid.divergence[i];
             // Visualize error: Red = Expansion (+), Cyan = Compression (-)
             Color c = (div > 0) ? divergencePositive : divergenceNegative;
-            c *= Mathf.Abs(div) * 50f; // Scale up to see small errors
+            c *= Mathf.Abs(div) * 5f; // Scale up to see small errors
             c.a = 1f;
             pixels[i] = c;
         }
