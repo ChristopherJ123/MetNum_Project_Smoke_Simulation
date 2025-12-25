@@ -12,11 +12,16 @@ public class FluidDrawer : MonoBehaviour
     [Header("Interaction")]
     public float interactionRadius = 3f;      // Ukuran awal kuas
     public float scrollSensitivity = 0.01f;    // Kecepatan membesar/mengecil
-    public float minRadius = 1f;              // Batas terkecil
+    public float minRadius = 0.1f;              // Batas terkecil
     public float maxRadius = 10f;             // Batas terbesar
 
     public float densityAmount = 100f;        // Intensitas asap
     public float velocityStrength = 10f;      // Intensitas dorongan
+    
+        
+    [Header("Cursor Indicator")]
+    public LineRenderer cursorLineRenderer; // Drag komponen LineRenderer ke sini
+    public int circleResolution = 40;       // Semakin tinggi semakin halus lingkarannya
 
     public void SetGrid(FluidGrid grid)
     {
@@ -27,6 +32,8 @@ public class FluidDrawer : MonoBehaviour
     {
         if (grid == null) return;
         HandleInteraction();
+        // Panggil fungsi ini setiap frame
+        UpdateCursorIndicator();
     }
 
     void HandleInteraction()
@@ -143,6 +150,38 @@ public class FluidDrawer : MonoBehaviour
             }
         }
     }
+    
+    void UpdateCursorIndicator()
+    {
+        if (cursorLineRenderer == null) return;
+
+        // 1. Ambil posisi mouse di World Space
+        Vector3 mousePos = Input.mousePosition;
+        mousePos.z = 10f; // Jarak dari kamera
+        Vector3 worldPos = Camera.main.ScreenToWorldPoint(mousePos);
+        worldPos.z = 0f;  // Pastikan Z sejajar dengan grid (2D)
+
+        // 2. Gambar lingkaran
+        DrawCircle(worldPos, interactionRadius);
+    }
+
+    void DrawCircle(Vector3 center, float radius)
+    {
+        cursorLineRenderer.positionCount = circleResolution;
+
+        float angleStep = 360f / circleResolution;
+        
+        for (int i = 0; i < circleResolution; i++)
+        {
+            float angle = i * angleStep * Mathf.Deg2Rad;
+            float x = Mathf.Cos(angle) * radius;
+            float y = Mathf.Sin(angle) * radius;
+
+            Vector3 pos = center + new Vector3(x, y, 0);
+            cursorLineRenderer.SetPosition(i, pos);
+        }
+    }
+    
     void OnDrawGizmos()
     {
         if (grid == null) return;

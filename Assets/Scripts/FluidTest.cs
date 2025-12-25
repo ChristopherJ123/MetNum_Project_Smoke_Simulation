@@ -99,8 +99,6 @@ public class FluidTest : MonoBehaviour
             grid.Step(timeStep, viscosity, diffusion);
         }
         
-       
-        
         display.Draw(); // <--- Draw the new library
     }
     
